@@ -9,52 +9,29 @@ Data Sources
 Sales Data (sales.csv)
 
 Menu Data (menu.csv)
+# Schema
 
-Schema
+## Sales Schema
 
-Sales Schema
+| Column       | Data Type |
+|-------------|-----------|
+| product_id  | Integer   |
+| customer_id | String    |
+| order_date  | Date      |
+| location    | String    |
+| source_order | String   |
 
-Column
+## Menu Schema
 
-Data Type
+| Column       | Data Type |
+|-------------|-----------|
+| product_id  | Integer   |
+| product_name | String   |
+| price       | String    |
 
-product_id
 
-Integer
+📂 Project Folder │── 📄 Data-Analysis.ipynb # Jupyter Notebook with PySpark analysis │── 📄 sales.csv # Sales dataset │── 📄 menu.csv # Menu dataset │── 📄 README.md # Project documentation
 
-customer_id
-
-String
-
-order_date
-
-Date
-
-location
-
-String
-
-source_order
-
-String
-
-Menu Schema
-
-Column
-
-Data Type
-
-product_id
-
-Integer
-
-product_name
-
-String
-
-price
-
-String
 
 Key Data Transformations
 
