@@ -1,124 +1,98 @@
-Data Analysis Using PySpark & Apache Spark in Databricks
+# Sales & Menu Data Analysis — PySpark & Apache Spark
 
-Overview
+Large-scale sales data analysis using PySpark in Databricks — covering revenue trends, customer behaviour, and product performance with interactive dashboard visualisations.
 
-This project focuses on analyzing sales and menu data using PySpark in Databricks. The dataset is loaded from CSV files, transformed as per business requirements, and used to generate key insights with visualizations in a Databricks Dashboard.
+---
 
-Data Sources
+## 📌 Overview
 
-Sales Data (sales.csv)
+This project demonstrates big data processing using Apache Spark via PySpark in a Databricks environment. Sales and menu data are loaded from CSV files, transformed through a series of business-logic driven queries, and visualised in a Databricks Dashboard.
 
-Menu Data (menu.csv)
-# Schema
+The analysis answers real business questions: who spends the most, which products drive revenue, and how do sales vary by time, location, and channel?
 
-## Sales Schema
+---
 
-| Column       | Data Type |
-|-------------|-----------|
-| product_id  | Integer   |
-| customer_id | String    |
-| order_date  | Date      |
-| location    | String    |
-| source_order | String   |
+## 🛠 Tech Stack
 
-## Menu Schema
+![PySpark](https://img.shields.io/badge/PySpark-E25A1C?style=flat&logo=apachespark&logoColor=white)
+![Databricks](https://img.shields.io/badge/Databricks-FF3621?style=flat&logo=databricks&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)
+![SQL](https://img.shields.io/badge/SQL-4479A1?style=flat&logo=mysql&logoColor=white)
 
-| Column       | Data Type |
-|-------------|-----------|
-| product_id  | Integer   |
-| product_name | String   |
-| price       | String    |
+---
 
+## 📊 Data Sources
 
-📂 Project Folder │── 📄 Data-Analysis.ipynb # Jupyter Notebook with PySpark analysis │── 📄 sales.csv # Sales dataset │── 📄 menu.csv # Menu dataset │── 📄 README.md # Project documentation
+**Sales (`sales.csv`)**
 
+| Column | Type |
+|---|---|
+| product_id | Integer |
+| customer_id | String |
+| order_date | Date |
+| location | String |
+| source_order | String |
 
-Key Data Transformations
+**Menu (`menu.csv`)**
 
-Extracted year, month, and quarter from order_date.
+| Column | Type |
+|---|---|
+| product_id | Integer |
+| product_name | String |
+| price | String |
 
-Joined sales and menu data to calculate revenue and customer insights.
+---
 
-Grouped data by various attributes for detailed analysis.
+## 🔍 Key Analyses
 
-Analysis & Insights
+| Analysis | Description |
+|---|---|
+| Total spend per customer | Revenue contribution by individual customer |
+| Spend by food category | Which product categories drive the most revenue |
+| Monthly spending trends | Time-series revenue patterns by month |
+| Yearly & quarterly sales | Annual and quarterly aggregates |
+| Orders by category | Popularity ranking of food categories |
+| Top ordered item | Most frequently purchased product |
+| Customer visit frequency | Repeat purchase behaviour |
+| Sales by country | Geographic revenue breakdown |
+| Sales by order source | Channel performance (in-store, app, etc.) |
 
-1. Total Amount Spent By Each Customer
+---
 
-Calculates the total spending per customer.
+## 📁 Project Structure
 
-2. Total Amount Spent By Each Food Category
+```
+Sales-Menu-Analysis/
+├── Data-Analysis.ipynb   # Main PySpark notebook
+├── sales.csv             # Sales dataset
+├── menu.csv              # Menu dataset
+└── README.md
+```
 
-Aggregates total sales by different food categories.
+---
 
-3. Total Amount Spent Each Month
+## 🚀 How to Run
 
-Monthly spending trends analysis.
+**Prerequisites:** Databricks account (Community Edition works) or local PySpark setup
 
-4. Yearly & Quarterly Sales
+```bash
+# For local setup
+pip install pyspark
 
-Annual and quarterly revenue tracking.
+# Then open the notebook in Jupyter or upload to Databricks
+jupyter notebook Data-Analysis.ipynb
+```
 
-5. Total Number of Orders By Each Category
+**On Databricks:**
+1. Upload `sales.csv` and `menu.csv` to Databricks FileStore
+2. Import `Data-Analysis.ipynb` into your workspace
+3. Run all cells
+4. Open the generated Dashboard to view visualisations
 
-Identifies the popularity of different food categories.
+---
 
-6. Top Ordered Item
+## 🔮 Future Enhancements
 
-Finds the most frequently ordered product.
-
-7. Customer Visit Frequency
-
-Analyzes repeat customer visits.
-
-8. Total Sales By Each Country
-
-Breakdown of sales by customer location.
-
-9. Total Sales By Order Source
-
-Examines sales trends based on ordering platforms.
-
-Dashboard
-
-A Databricks Dashboard was created to visualize these insights using:
-
-Bar Charts
-
-Line Charts
-
-Pie Charts
-
-How to Run the Project
-
-Prerequisites
-
-Databricks Community Edition (or an active Databricks workspace)
-
-PySpark Installed (pip install pyspark)
-
-Steps
-
-Upload the dataset to Databricks FileStore.
-
-Open the Jupyter Notebook in Databricks.
-
-Execute the notebook cells to process the data.
-
-View the generated dashboard for insights.
-
-File Structure
-
-📁 Project Folder
-│── Data-Analysis.ipynb  # Jupyter Notebook with PySpark analysis
-│── sales.csv            # Sales dataset
-│── menu.csv             # Menu dataset
-│── README.md            # Project documentation
-
-Future Enhancements
-
-Integrate real-time data streaming using Apache Kafka.
-
-Add machine learning models for sales prediction.
-
-Improve dashboard UI with more interactive elements.
+- Add real-time data streaming via Apache Kafka
+- Build a sales forecasting model using Spark MLlib
+- Improve dashboard interactivity with Databricks SQL
