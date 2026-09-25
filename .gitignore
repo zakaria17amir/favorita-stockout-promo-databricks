@@ -1,0 +1,20 @@
+# local working files (checklist)
+.local/
+
+# data (Kaggle terms: never commit raw or derived data)
+data/
+
+# python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+spark-warehouse/
+metastore_db/
+derby.log
+
+# local settings and secrets
+.env
+.databrickscfg
+*.local.json
