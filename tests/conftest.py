@@ -44,3 +44,24 @@ def raw_dir(tmp_path_factory):
 @pytest.fixture(scope="session")
 def cfg(raw_dir):
     return replace(FIXTURE_CFG, raw_path=str(raw_dir).replace("\\", "/"))
+
+
+@pytest.fixture(scope="session")
+def warehouse(spark, cfg):
+    """Project 1's fixture through bronze → silver → gold, as local temp views."""
+    from favorita_spark.bronze import RAW_SCHEMAS, read_raw
+    from favorita_spark.runner import build_sql_layer
+
+    for name in RAW_SCHEMAS:
+        read_raw(spark, f"{cfg.raw_path}/{name}{cfg.raw_ext}", name).createOrReplaceTempView(f"bronze__{name}")
+    for layer in ("silver", "gold"):
+        build_sql_layer(spark, layer, cfg, local=True)
+    return spark
+
+
+@pytest.fixture(scope="session")
+def sql(warehouse):
+    """Run a query written with real table names (gold.fact_sales) against the local views."""
+    from favorita_spark.runner import localize
+
+    return lambda query: [tuple(r) for r in warehouse.sql(localize(query)).collect()]

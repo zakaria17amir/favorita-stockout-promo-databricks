@@ -23,6 +23,7 @@ class Config:
 
     def sql_params(self) -> dict[str, str]:
         return {
+            "slice_start": self.slice_start.isoformat(),
             "stockout_from": self.window_start.isoformat(),
             "lookback_days": str(self.lookback_days),
             "min_expected_units": str(self.min_expected_units),
