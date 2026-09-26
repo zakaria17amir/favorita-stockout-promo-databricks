@@ -4,7 +4,9 @@ Pass criteria (spec 4.3): equal fact_sales rows and Σ units; baselines within 0
 The slice starts later than Project 1's history, so an item that reappears after a long silence gets
 a later first sale here. That can only REMOVE baselines and stock-out flags, never add them. So those
 two checks are directional: anything only Databricks has is a bug; what it lacks must stay small
-(baseline NULL mismatches ≤ 0.5%, flag Jaccard ≥ 0.995).
+(baseline NULL mismatches ≤ 0.5%, flag Jaccard ≥ 0.995). One exception: a flag whose λ is exactly the
+λ ≥ 3 threshold. Whether a float average of exactly 3 lands on 3.0 or 2.9999999999999996 depends on the
+engine's summation order, so such a tie may appear on either side; it is reported, not failed.
 
     python scripts/reconcile.py --export data/export --flagship ../Flagship/data/full/gold
 """
@@ -15,6 +17,8 @@ from datetime import date
 from pathlib import Path
 
 import duckdb
+
+MIN_EXPECTED_UNITS = 3.0  # the contract's λ threshold (Project 1 and fact_stockout_risk.sql)
 
 
 @dataclass(frozen=True)
@@ -51,9 +55,11 @@ def reconcile(export_dir: Path, flagship_gold: Path, start: date, end: date) -> 
             count(*) FILTER (WHERE d.baseline_units IS NOT NULL OR p.baseline_units IS NOT NULL)
         FROM dbx_fact_sales AS d
         JOIN p1_fact_sales AS p USING (date_key, store_key, item_key)""")
-    both, dbx_only_flags, union = one("""
+    both, dbx_only_flags, dbx_only_ties, union = one(f"""
         SELECT count(*) FILTER (WHERE d.date_key IS NOT NULL AND p.date_key IS NOT NULL),
-               count(*) FILTER (WHERE p.date_key IS NULL), count(*)
+               count(*) FILTER (WHERE p.date_key IS NULL),
+               count(*) FILTER (WHERE p.date_key IS NULL AND abs(d.expected_units - {MIN_EXPECTED_UNITS}) < 1e-9),
+               count(*)
         FROM dbx_fact_stockout_risk AS d
         FULL JOIN p1_fact_stockout_risk AS p USING (date_key, store_key, item_key)""")
     null_share = mismatched / with_baseline if with_baseline else 0.0
@@ -71,9 +77,12 @@ def reconcile(export_dir: Path, flagship_gold: Path, start: date, end: date) -> 
               dbx_only_baselines == 0 and null_share <= 0.005,
               "Databricks may lack a baseline (later first sale), never add one; ≤ 0.5%"),
         Check("stock-out flags ⊆ Project 1",
-              f"Jaccard {jaccard:.4f}; {dbx_only_flags:,} only in Databricks, {union - both - dbx_only_flags:,} only in Project 1",
-              dbx_only_flags == 0 and jaccard >= 0.995,
-              "Databricks may miss flags (shorter spine history), never add one; Jaccard ≥ 0.995"),
+              f"Jaccard {jaccard:.4f}; {dbx_only_flags:,} only in Databricks"
+              + (f" (all at the λ = {MIN_EXPECTED_UNITS:g} threshold)" if dbx_only_flags and dbx_only_flags == dbx_only_ties else "")
+              + f", {union - both - dbx_only_flags:,} only in Project 1",
+              dbx_only_flags == dbx_only_ties and jaccard >= 0.995,
+              "Databricks may miss flags (shorter spine history), never add one except a λ-exactly-at-threshold tie; "
+              "Jaccard ≥ 0.995"),
     ]
 
 

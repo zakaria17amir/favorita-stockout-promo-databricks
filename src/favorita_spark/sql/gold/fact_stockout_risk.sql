@@ -18,5 +18,7 @@ WHERE date >= DATE '$stockout_from'
   AND full_day
   AND no_sale_row
   AND history_days = $lookback_days
-  AND lambda_units >= $min_expected_units
+  -- rounded: a float average of exactly 3 can come out as 2.9999999999999996 depending on the
+  -- engine's summation order, which would make the flag non-deterministic at the threshold
+  AND round(lambda_units, 9) >= $min_expected_units
   AND future_sales > 0

@@ -20,6 +20,8 @@ which it converges to. The Poisson p-value stays in the table as `p_poisson`.
   38.1% for Poisson. It's still one formula to explain in an interview: "Poisson plus the item's own variability."
 + The trailing 28-day φ (median 2.0 at run start) avoids look-ahead. A prototype that used each item's variance over
   the whole year flagged 7.5%, but that year includes days after the run, so it was rejected.
++ Full-year Databricks run (5,736,166 tested runs): the negative binomial flags 273,292 (4.8%; BH cut-off 0.0024,
+  at most 13,664 chance), against 1,233,125 (21.5%) for Poisson on the same runs.
 + Each flag's `p_poisson` next to its `p_value` shows how much the correction mattered.
 − A 28-day variance is a noisy estimate. An earlier stock-out inside those 28 days inflates it, which makes
   the test more conservative (fewer flags), not less.

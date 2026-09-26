@@ -58,7 +58,7 @@ def test_missing_flags_beyond_tolerance_fail(tmp_path):
 def test_a_flag_only_databricks_has_is_a_bug(tmp_path):
     # the sliced history can only remove flags; one extra is a failure even when Jaccard is high
     many = [(20160901 + i % 28, 1 + i // 28, 101, 4.0) for i in range(1000)]
-    dbx = write(tmp_path / "dbx", SALES, many + [(20170101, 9, 999, 3.0)], as_dir=True)
+    dbx = write(tmp_path / "dbx", SALES, many + [(20170101, 9, 999, 4.0)], as_dir=True)  # λ well above 3: no tie
     p1 = write(tmp_path / "p1", SALES, many, as_dir=False)
     check = {c.name: c for c in reconcile(dbx, p1, START, END)}[FLAGS]
     assert not check.passed and "1 only in Databricks" in check.value
@@ -86,3 +86,13 @@ def test_report_lists_every_check(tmp_path):
 def test_empty_window_is_a_failure_not_a_crash(tmp_path):
     checks = run(tmp_path, sales=[SALES[-1]])  # only burn-in rows exported
     assert not checks["fact_sales rows"].passed
+
+
+def test_threshold_ties_only_in_databricks_are_explained(tmp_path):
+    # λ exactly 3.0 sits on the "λ ≥ 3" edge; whether an engine counts it depends on float rounding
+    many = [(20160901 + i % 28, 1 + i // 28, 101, 4.0) for i in range(1000)]
+    dbx = write(tmp_path / "dbx", SALES, many + [(20170131, 13, 1473479, 3.0)], as_dir=True)
+    p1 = write(tmp_path / "p1", SALES, many, as_dir=False)
+    check = {c.name: c for c in reconcile(dbx, p1, START, END)}[FLAGS]
+    assert check.passed
+    assert "1 only in Databricks (all at the λ = 3 threshold)" in check.value
