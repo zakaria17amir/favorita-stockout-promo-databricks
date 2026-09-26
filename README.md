@@ -132,8 +132,8 @@ python -m venv .venv
    ```
 
    Upload the five `.csv.gz` files to the `workspace.bronze.raw` volume, either in the UI (Catalog → volume →
-   *Upload*, 5 GB per file) or with the [Databricks CLI](https://docs.databricks.com/dev-tools/cli/install.html):
-   `databricks fs cp -r data/slice dbfs:/Volumes/workspace/bronze/raw --overwrite`.
+   *Upload*, 5 GB per file; select the five files, not the folder) or with the [Databricks CLI](https://docs.databricks.com/dev-tools/cli/install.html):
+   `for f in data/slice/*.csv.gz; do databricks fs cp "$f" dbfs:/Volumes/workspace/bronze/raw/ --overwrite; done`.
 5. Run `01` → `07` in order on serverless compute.
 6. Download the export and reconcile it against Project 1:
 
