@@ -60,10 +60,10 @@ tests/test_silver.py, test_fact_sales.py, test_stockout_risk.py, test_gold_dims.
   Result: in local mode, `render(..., local=True)` rewrites `bronze.x`, `silver.x` and `gold.x` to temp-view names
   (`bronze__x`), and each layer is registered with `createOrReplaceTempView`. `read_raw` takes an exact file path
   (`Config.raw_ext`: `.csv.gz` on Databricks, `.csv` for the fixture). pandas is pinned below 3 (PySpark 4.2 warns on pandas 3).
-- [ ] Step 2: Write `tests/test_bronze.py`: `read_raw(spark, raw_dir, "train")` gives 5 typed columns; `onpromotion` stays NULL for store 2 in 2016 (91 rows); a malformed row raises under FAILFAST.
-- [ ] Step 3: Run it; it fails (module missing).
-- [ ] Step 4: Implement `config.py`, `bronze.py`, `conftest.py`.
-- [ ] Step 5: Run it; it passes. Commit `feat: project scaffold, config and bronze reader`.
+- [x] Step 2: Write `tests/test_bronze.py`: `read_raw(spark, raw_dir, "train")` gives 5 typed columns; `onpromotion` stays NULL for store 2 in 2016 (91 rows); a malformed row raises under FAILFAST.
+- [x] Step 3: Run it; it fails (module missing).
+- [x] Step 4: Implement `config.py`, `bronze.py`, `conftest.py`.
+- [x] Step 5: Run it; it passes. Commit `feat: project scaffold, config and bronze reader`.
 
 ### Task 2: Silver + gold contract SQL with Project 1 parity tests
 
@@ -77,7 +77,7 @@ Parity tests assert Project 1's expected values exactly:
 - Silver: returns split out (0.0, 1.0); receipts 100; national holidays {2016-01-01, 2016-02-09}.
 - Dims: `dim_date` flags 2016-01-01 as a holiday and 2016-01-02 as a weekend; `stg_item` 102 is perishable.
 
-- [ ] Step 1: Write the four test files. Step 2: run, fail. Step 3: implement the runner and the SQL (the port rules are in Global Constraints). Step 4: run, pass. Step 5: commit `feat: silver and gold contract SQL ported from Project 1 with parity tests`.
+- [x] Step 1: Write the four test files. Step 2: run, fail. Step 3: implement the runner and the SQL (the port rules are in Global Constraints). Step 4: run, pass. Step 5: commit `feat: silver and gold contract SQL ported from Project 1 with parity tests`.
 
 ### Task 3: Stock-out runs, Benjamini–Hochberg, dispersion
 
@@ -97,7 +97,7 @@ Tests:
 4. `flag_bh` with nothing significant gives `(all False, None)`.
 5. `dispersion`: a constant series gives variance 0 and dispersion 0.
 
-- [ ] Steps: write the tests → fail → implement → pass → commit `feat: Poisson zero-sale run test with Benjamini–Hochberg`.
+- [x] Steps: write the tests → fail → implement → pass → commit `feat: Poisson zero-sale run test with Benjamini–Hochberg`.
 
 ### Task 4: Promo events + family bootstrap summary
 
@@ -115,7 +115,7 @@ Tests:
 4. The bootstrap CI brackets the median, and it's deterministic with the same seed.
 5. `family_summary` drops families with fewer than `min_family_events` events.
 
-- [ ] Steps: tests → fail → implement → pass → commit `feat: promo events, uplift, post-promo dip and bootstrap family summary`.
+- [x] Steps: tests → fail → implement → pass → commit `feat: promo events, uplift, post-promo dip and bootstrap family summary`.
 
 ### Task 5: Data checks + Plotly charts
 
@@ -128,7 +128,7 @@ Tests:
 
 The charts follow the `dataviz` skill (loaded before this task).
 
-- [ ] Steps: tests (the fixture passes all checks; each chart builds from a small frame with the expected trace count and title) → fail → implement → pass → commit.
+- [x] Steps: tests (the fixture passes all checks; each chart builds from a small frame with the expected trace count and title) → fail → implement → pass → commit.
 
 ### Task 6: Scripts: slice_raw + reconcile
 
@@ -144,7 +144,7 @@ Tests (DuckDB only, no Spark):
 - The slice of the fixture keeps rows between 2016-01-01 and 2016-01-31, and the header and row text match the source lines.
 - Reconcile on identical tiny Parquet sets passes everything. A changed baseline fails the baseline check, and a missing flag lowers the Jaccard similarity below 0.999.
 
-- [ ] Steps: tests → fail → implement → pass → commit.
+- [x] Steps: tests → fail → implement → pass → commit.
 
 ### Task 7: Notebooks, CI, docs
 
