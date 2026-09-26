@@ -85,7 +85,9 @@ flowchart LR
 before it so every trailing average is complete on day one. The raw files are date-sliced
 locally because Free Edition has a daily compute cap. The rows are otherwise untouched.
 
-The full design is in the [spec](docs/superpowers/specs/2026-09-26-stockout-promo-databricks-design.md).
+The full design is in the [spec](docs/superpowers/specs/2026-09-26-stockout-promo-databricks-design.md). Decisions:
+[ADR-001 Free Edition and the slice](docs/decisions/ADR-001-free-edition-and-slice.md) ·
+[ADR-002 Power BI link](docs/decisions/ADR-002-power-bi-link.md).
 
 ## Repository layout
 
@@ -101,7 +103,8 @@ docs/                 spec, plan, decisions, charts, reconciliation
 
 ### Tests (local, no Databricks needed)
 
-Requires Python 3.11–3.13 and Java 17 or 21.
+Requires Python 3.11–3.13 and Java 17 or 21. Java 23 also works: the test session passes
+`-Djava.security.manager=allow`. On Windows no winutils is needed, because local tests use temp views instead of tables.
 
 ```bash
 python -m venv .venv
@@ -113,16 +116,23 @@ python -m venv .venv
 
 1. Sign up at [databricks.com/learn/free-edition](https://www.databricks.com/learn/free-edition).
 2. Create a Git folder in the workspace that points at this repo.
-3. Slice and upload the raw data (needs the Kaggle files from Project 1 and the
-   [Databricks CLI](https://docs.databricks.com/dev-tools/cli/install.html)):
+3. Run `notebooks/00_setup` once. It creates the schemas and volumes, and a table for the Power BI connector test.
+4. Slice the raw data locally (needs the Kaggle files from Project 1). This gives 42.8M sales rows and a 297 MB `train.csv.gz`:
 
    ```bash
    .venv/Scripts/python scripts/slice_raw.py --raw ../Flagship/data/raw --out data/slice
-   databricks auth login --host https://<your-workspace>.cloud.databricks.com
-   databricks fs cp -r data/slice dbfs:/Volumes/workspace/bronze/raw --overwrite
    ```
 
-4. Run `notebooks/00_setup` once, then `01` → `07` in order on serverless compute.
+   Upload the five `.csv.gz` files to the `workspace.bronze.raw` volume, either in the UI (Catalog → volume →
+   *Upload*, 5 GB per file) or with the [Databricks CLI](https://docs.databricks.com/dev-tools/cli/install.html):
+   `databricks fs cp -r data/slice dbfs:/Volumes/workspace/bronze/raw --overwrite`.
+5. Run `01` → `07` in order on serverless compute.
+6. Download the export and reconcile it against Project 1:
+
+   ```bash
+   databricks fs cp -r dbfs:/Volumes/workspace/gold/export data/export --overwrite
+   .venv/Scripts/python scripts/reconcile.py --export data/export --flagship ../Flagship/data/full/gold
+   ```
 
 ## Roadmap
 

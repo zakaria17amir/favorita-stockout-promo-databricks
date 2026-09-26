@@ -33,10 +33,10 @@ scheduled jobs.
 |---|---|
 | Analysis window | 2016-08-16 → 2017-08-15 (the last 12 months of Favorita) |
 | Raw slice | 2016-06-21 → 2017-08-15: the window plus a 56-day burn-in, so trailing windows and the stock-out spine are complete on day one |
-| Ingest | `scripts/slice_raw.py` (DuckDB) date-filters Project 1's local raw CSVs into gzipped CSVs with the same columns. `databricks fs cp` uploads them to a Unity Catalog volume |
+| Ingest | `scripts/slice_raw.py` (DuckDB) date-filters `train.csv` into a gzipped CSV (raw text untouched). The small files, including `transactions`, stay whole so store opening dates use full history, and `silver.store_day` filters to the slice. Upload with `databricks fs cp` or the volume UI (5 GB per file). Real run: 42.8M rows, 297 MB |
 | Catalog | Configurable, default `workspace` (Free Edition's default catalog); schemas `bronze`, `silver`, `gold`; volume `bronze.raw` |
 | bronze | PySpark: typed CSV read → Delta. No logic |
-| silver, gold contract | Spark SQL files ported from Project 1's DuckDB SQL (`sales`, `store_day`, `national_holidays`, `dim_date`, `stg_store`, `stg_item`, `stg_store_day`, `fact_sales`, `fact_stockout_risk`) |
+| silver, gold contract | Spark SQL files ported from Project 1's DuckDB SQL (`sales`, `store_day`, `national_holidays`, `dim_date`, `stg_store`, `stg_item`, `stg_store_day`, `fact_sales`, `fact_stockout_risk`). Project 1's stock-out spine moves into `silver.stockout_series`, shared by `fact_stockout_risk` and the run test |
 | gold, new | PySpark: `fact_stockout_run`, `fact_promo_event`. pandas/numpy: `promo_family_summary` |
 | Code shape | Logic in `src/favorita_spark/` (functions from DataFrame to DataFrame, plus `.sql` files). The notebooks are thin runners that import it through a Databricks Git folder |
 | Link to Project 1 | Day-one test: Power BI Databricks connector plus a personal access token against the SQL warehouse. Fallback: export Parquet and upload it to OneLake. The result goes in ADR-002 |
@@ -48,8 +48,8 @@ scheduled jobs.
   because Spark has no `FILTER` in window aggregates and `sum` over an empty frame is NULL where DuckDB's `count` is 0.
 - `strftime(d, '%Y%m%d')` becomes `date_format(d, 'yyyyMMdd')`. DuckDB's `datediff('day', a, b)` becomes Spark's `datediff(b, a)`.
 - The SQL files contain only a `SELECT`. The runner wraps each one in `CREATE OR REPLACE TABLE … AS` on
-  Databricks, or `CREATE OR REPLACE VIEW … AS` in local tests, so local tests never write files.
-  That avoids winutils on Windows.
+  Databricks. In local tests it registers a temp view named `<layer>__<name>` and rewrites table references
+  to match. Windows Spark can't `CREATE DATABASE` without winutils, and glob paths hang, so `read_raw` takes exact paths.
 - Parameters use `string.Template` (`$lookback_days`), the same as Project 1.
 
 ## 3. Statistics
