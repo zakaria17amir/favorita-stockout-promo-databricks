@@ -18,9 +18,13 @@ CHECKS = {
     "fact_stockout_risk_orphan_date":
         "SELECT count(*) FROM gold.fact_stockout_risk AS f "
         "LEFT ANTI JOIN gold.dim_date AS d ON d.date_key = f.date_key",
+    "rows_silver_vs_gold":
+        "SELECT abs((SELECT count(*) FROM silver.sales) - (SELECT count(*) FROM gold.fact_sales))",
+    # summed as DECIMAL: a parallel sum of 43M doubles depends on the order the rows are added in,
+    # so comparing two double sums can differ by whole units with nothing missing
     "units_silver_vs_gold":
-        "SELECT CASE WHEN abs((SELECT sum(units) FROM silver.sales) - (SELECT sum(units) FROM gold.fact_sales))"
-        " > 1e-6 THEN 1 ELSE 0 END",
+        "SELECT CASE WHEN (SELECT sum(CAST(units AS DECIMAL(38, 6))) FROM silver.sales)"
+        " = (SELECT sum(CAST(units AS DECIMAL(38, 6))) FROM gold.fact_sales) THEN 0 ELSE 1 END",
 }
 
 

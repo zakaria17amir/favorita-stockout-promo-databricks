@@ -10,4 +10,5 @@ def test_only_failing_checks_are_returned(warehouse):
 
 
 def test_every_contract_fact_is_checked():
-    assert {"fact_sales_duplicate_keys", "fact_stockout_risk_duplicate_keys", "units_silver_vs_gold"} <= set(CHECKS)
+    assert {"fact_sales_duplicate_keys", "fact_stockout_risk_duplicate_keys", "units_silver_vs_gold",
+            "rows_silver_vs_gold"} <= set(CHECKS)
