@@ -45,10 +45,34 @@ def test_baseline_drift_fails(tmp_path):
     assert checks["fact_sales Σ units"].passed
 
 
-def test_missing_flag_lowers_jaccard(tmp_path):
-    checks = run(tmp_path, risk=RISK[:1])
-    assert not checks["stock-out flags Jaccard ≥ 0.999"].passed
-    assert checks["stock-out flags Jaccard ≥ 0.999"].value == "0.5000"
+FLAGS = "stock-out flags ⊆ Project 1"
+BASELINE_NULLS = "baseline NULLs only from sliced history"
+
+
+def test_missing_flags_beyond_tolerance_fail(tmp_path):
+    check = run(tmp_path, risk=RISK[:1])[FLAGS]
+    assert not check.passed
+    assert check.value == "Jaccard 0.5000; 0 only in Databricks, 1 only in Project 1"
+
+
+def test_a_flag_only_databricks_has_is_a_bug(tmp_path):
+    # the sliced history can only remove flags; one extra is a failure even when Jaccard is high
+    many = [(20160901 + i % 28, 1 + i // 28, 101, 4.0) for i in range(1000)]
+    dbx = write(tmp_path / "dbx", SALES, many + [(20170101, 9, 999, 3.0)], as_dir=True)
+    p1 = write(tmp_path / "p1", SALES, many, as_dir=False)
+    check = {c.name: c for c in reconcile(dbx, p1, START, END)}[FLAGS]
+    assert not check.passed and "1 only in Databricks" in check.value
+
+
+def test_a_baseline_only_databricks_has_is_a_bug(tmp_path):
+    extra = [SALES[0], (20160817, 1, 101, 6.0, 1.5)] + SALES[2:]  # Project 1 has NULL here
+    assert not run(tmp_path, sales=extra)[BASELINE_NULLS].passed
+
+
+def test_baselines_databricks_lacks_are_explained(tmp_path):
+    lacking = [(20160816, 1, 101, 5.0, None)] + SALES[1:]
+    check = run(tmp_path, sales=lacking)[BASELINE_NULLS]
+    assert check.value == "1 of 2 rows (50.000%); 0 where only Databricks has one"
 
 
 def test_report_lists_every_check(tmp_path):
