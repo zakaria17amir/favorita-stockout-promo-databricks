@@ -89,6 +89,9 @@ def promo_events(
             F.when(post_ok, post_sold).alias("post_units"),
             F.when(post_ok, post_expected).alias("post_expected_units"),
             F.when(post_ok, post_sold / post_expected - 1).alias("post_dip"),
+            # did it pay back? promotion + the week after, against what the baseline expects for both
+            F.when(post_ok, (F.col("promo_units") + post_sold)
+                   / (F.col("baseline_units") * F.col("promo_days") + post_expected) - 1).alias("net_lift"),
             (F.col("touches") == 1).alias("touches_payday_or_holiday"),
         )
     )
@@ -104,21 +107,18 @@ def bootstrap_median_ci(values, n: int, seed: int) -> tuple[float, float, float]
 
 
 def family_summary(events_pd: pd.DataFrame, cfg: Config) -> pd.DataFrame:
-    """Median uplift and post-promo dip per family, with bootstrap 95% CIs; small families are skipped."""
+    """Median uplift, post-promo dip and net lift per family, with bootstrap 95% CIs; small families are skipped.
+    Dip and net lift exist only for events with a promotion-free week after, so they have their own counts."""
     nan3 = (float("nan"),) * 3
     rows = []
     for family, g in events_pd.groupby("family"):
         if len(g) < cfg.min_family_events:
             continue
-        dips = g["post_dip"].dropna()
-        rows.append((
-            family,
-            len(g),
-            *bootstrap_median_ci(g["uplift"], cfg.bootstrap_resamples, cfg.seed),
-            len(dips),
-            *(bootstrap_median_ci(dips, cfg.bootstrap_resamples, cfg.seed)
-              if len(dips) >= cfg.min_family_events else nan3),
-        ))
+        dips, nets = g["post_dip"].dropna(), g["net_lift"].dropna()
+        ci = lambda v: (bootstrap_median_ci(v, cfg.bootstrap_resamples, cfg.seed)  # noqa: E731
+                        if len(v) >= cfg.min_family_events else nan3)
+        rows.append((family, len(g), *ci(g["uplift"]), len(dips), *ci(dips), len(nets), *ci(nets)))
     columns = ["family", "n_events", "uplift_median", "uplift_lo", "uplift_hi",
-               "n_dip_events", "dip_median", "dip_lo", "dip_hi"]
+               "n_dip_events", "dip_median", "dip_lo", "dip_hi",
+               "n_net_events", "net_median", "net_lo", "net_hi"]
     return pd.DataFrame(rows, columns=columns).sort_values("uplift_median", ascending=False, ignore_index=True)

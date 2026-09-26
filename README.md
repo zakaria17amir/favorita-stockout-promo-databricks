@@ -48,6 +48,8 @@ It's compared with the item's normal rate: its average over the previous 28 trad
 - Post-promo dip = the same comparison over the 7 days after the event (customers who stocked up buy less).
   It's only measured when the following week is promotion-free. On Favorita the next promotion often starts
   within 7 days, so about 1 in 6 events has a clean week. The rest would mix the dip with the next lift.
+- **Net lift** = (units during the promotion + the week after) ÷ the baseline for both − 1. A promotion that only
+  pulled sales forward nets out near zero, so this answers *did it pay back?*
 - Each family gets the **median** uplift with a **bootstrap 95% confidence interval** (1,000 resamples of events).
 - **Known bias:** promotions that fall on holidays or paydays (the 15th and the month-end) look better than
   they are. A check chart splits them out.
@@ -60,7 +62,7 @@ It's compared with the item's normal rate: its average over the previous 28 trad
 | PySpark | Bronze load, run detection with window functions, BH ranking, promo events | Built and tested |
 | Spark SQL | Silver and gold contract tables, ported from Project 1's DuckDB SQL | Built, parity-tested |
 | Statistics | Negative-binomial run test (vs. Poisson), Benjamini–Hochberg FDR, bootstrap CIs | Built and tested |
-| Plotly | Uplift with CIs, uplift vs. dip, holiday/payday check, stock-out heatmap, overdispersion check | Built |
+| Plotly | Uplift and net payback with CIs, holiday/payday check, stock-out rate heatmap, overdispersion check | Built |
 | Testing | pytest on local Spark; Project 1's fixture must give the same numbers as Project 1 | Built |
 | Interoperability | Same table contract as Project 1, reconciled row by row; Power BI via the Databricks connector | Connector tested; reconciliation pending |
 

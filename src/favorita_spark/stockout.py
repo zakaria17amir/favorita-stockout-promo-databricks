@@ -104,11 +104,29 @@ def dispersion(series: DataFrame, cfg: Config) -> DataFrame:
     )
 
 
-def weekly_flags(runs_flagged: DataFrame) -> DataFrame:
-    """Flagged runs and estimated lost units per store and ISO week (Monday start), for the heatmap."""
-    start = F.to_date(F.col("start_date_key").cast("string"), "yyyyMMdd")
-    return (
+def weekly_stockout_rate(runs_flagged: DataFrame, series: DataFrame, stg_store: DataFrame, cfg: Config) -> DataFrame:
+    """Share of tested item-days that sat inside a flagged run, per store and ISO week (Monday start).
+
+    Dividing by item-days tested makes a small store comparable with a big one; a raw count of
+    flagged runs mostly measures how many items a store carries. A store-week with no tested
+    item-days has no row, so the heatmap leaves it blank rather than showing zero.
+    ponytail: a run's days are credited to the week it starts in; runs are ≤ 28 days, so at worst
+    part of one run lands a few weeks early. Explode runs to days if week-level precision matters.
+    """
+    week = lambda c: F.date_trunc("week", c).cast("date")  # noqa: E731
+    tested = (
+        series.filter(F.col("full_day") & F.col("date").between(F.lit(cfg.window_start), F.lit(cfg.window_end)))
+        .groupBy(F.col("store_nbr").alias("store_key"), week(F.col("date")).alias("week_start"))
+        .agg(F.count("*").alias("item_days"))
+    )
+    flagged = (
         runs_flagged.filter("is_flagged")
-        .groupBy("store_key", F.date_trunc("week", start).cast("date").alias("week_start"))
-        .agg(F.count("*").alias("flagged_runs"), F.sum("expected_lost_units").alias("lost_units"))
+        .groupBy("store_key", week(F.to_date(F.col("start_date_key").cast("string"), "yyyyMMdd")).alias("week_start"))
+        .agg(F.sum("run_days").alias("flagged_days"))
+    )
+    return (
+        tested.join(flagged, ["store_key", "week_start"], "left")
+        .fillna(0, ["flagged_days"])
+        .join(stg_store.select("store_key", "city"), "store_key", "left")
+        .withColumn("rate", F.col("flagged_days") / F.col("item_days"))
     )

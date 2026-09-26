@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from favorita_spark.stockout import bh_summary, dispersion, flag_bh, stockout_runs, weekly_flags
+from favorita_spark.stockout import bh_summary, dispersion, flag_bh, stockout_runs, weekly_stockout_rate
 
 SERIES_SCHEMA = ("store_nbr INT, item_nbr INT, date DATE, units DOUBLE, no_sale_row BOOLEAN, "
                  "full_day BOOLEAN, lambda_units DOUBLE, var_units DOUBLE, history_days BIGINT")
@@ -88,12 +88,20 @@ def test_dispersion(spark, cfg):
     assert rows[2].dispersion == pytest.approx(4 / 3)
 
 
-def test_weekly_flags(spark):
-    runs = spark.createDataFrame(
-        [(1, 20160104, True, 3.0), (1, 20160107, True, 2.0), (1, 20160111, True, 1.0), (1, 20160105, False, 9.0)],
-        "store_key INT, start_date_key INT, is_flagged BOOLEAN, expected_lost_units DOUBLE")
-    rows = sorted(tuple(r) for r in weekly_flags(runs).collect())
-    assert rows == [(1, date(2016, 1, 4), 2, 5.0), (1, date(2016, 1, 11), 1, 1.0)]
+def test_weekly_stockout_rate(spark, cfg):
+    # store 1, week of 2016-01-04: 2 items × 5 full days = 10 item-days (the partial day doesn't count);
+    # one flagged run of 2 days → 20%. The unflagged run adds nothing. Store 2 is tested but clean → 0%.
+    days = [date(2016, 1, 4) + timedelta(days=i) for i in range(6)]
+    series_rows = [(1, item, d, i < 5) for item in (101, 102) for i, d in enumerate(days)]
+    series_rows += [(2, 101, d, True) for d in days[:5]]
+    series = spark.createDataFrame(series_rows, "store_nbr INT, item_nbr INT, date DATE, full_day BOOLEAN")
+    runs = spark.createDataFrame([(1, 20160105, True, 2), (1, 20160106, False, 1)],
+                                 "store_key INT, start_date_key INT, is_flagged BOOLEAN, run_days INT")
+    stores = spark.createDataFrame([(1, "Quito"), (2, "Cuenca")], "store_key INT, city STRING")
+    rows = {r.store_key: r for r in weekly_stockout_rate(runs, series, stores, cfg).collect()}
+    assert (rows[1].week_start, rows[1].city, rows[1].item_days, rows[1].flagged_days) == (date(2016, 1, 4), "Quito", 10, 2)
+    assert rows[1].rate == pytest.approx(0.2)
+    assert (rows[2].flagged_days, rows[2].rate) == (0, 0.0)
 
 
 def test_dispersion_of_exactly_one_is_poisson(spark, cfg):

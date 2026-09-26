@@ -22,6 +22,8 @@ def test_fixture_event_uplift_and_dip(warehouse, cfg):
     # 2016-01-13..19: 7 trading days, 2 units each
     assert (e.post_units, e.post_expected_units) == (14.0, pytest.approx(7 * base))
     assert e.post_dip == pytest.approx(14 / (7 * base) - 1)
+    # net: promo + following week vs. what the baseline expects for both → did it pay back?
+    assert e.net_lift == pytest.approx((18 + 14) / (10 * base) - 1)
     assert e.touches_payday_or_holiday is False
 
 
@@ -47,6 +49,7 @@ def test_a_normal_day_splits_events_and_overlap_voids_the_dip(spark, cfg):
     first, second = events(spark, cfg, "..PP.PP.......", date(2016, 1, 1))
     assert (first.start_date_key, first.end_date_key, second.start_date_key) == (20160103, 20160104, 20160106)
     assert first.post_dip is None  # the next event starts inside its 7-day post window
+    assert first.net_lift is None
     assert second.uplift == pytest.approx(12 / (2 * 2.0) - 1)
     assert second.post_dip == pytest.approx(0.0)  # 01-08..14 sell the normal 2/day
 
@@ -77,6 +80,7 @@ def test_family_summary_needs_enough_events(cfg):
         "family": ["A"] * 40 + ["B"] * 10,
         "uplift": [0.5] * 40 + [9.0] * 10,
         "post_dip": [-0.1] * 35 + [None] * 5 + [0.0] * 10,
+        "net_lift": [0.2] * 35 + [None] * 5 + [1.0] * 10,
     })
     out = family_summary(df, cfg)
     assert out["family"].tolist() == ["A"]
@@ -84,3 +88,4 @@ def test_family_summary_needs_enough_events(cfg):
     assert (row.n_events, row.uplift_median, row.uplift_lo, row.uplift_hi) == (40, 0.5, 0.5, 0.5)
     assert (row.n_dip_events, row.dip_median) == (35, pytest.approx(-0.1))
     assert not math.isnan(row.dip_lo)
+    assert (row.n_net_events, row.net_median, row.net_lo, row.net_hi) == (35, 0.2, 0.2, 0.2)

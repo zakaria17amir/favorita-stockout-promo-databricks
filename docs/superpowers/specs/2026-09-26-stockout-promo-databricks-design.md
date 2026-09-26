@@ -109,12 +109,17 @@ from the event table, which is small enough to collect.
 
 ### 4.1 Plotly charts (`src/favorita_spark/charts.py`)
 
-Each chart is a function that takes pandas and returns a `go.Figure`, built with the `dataviz` skill's rules:
+Each chart is a function that takes pandas and returns a `go.Figure`, built with the `dataviz` skill's rules.
+Each title states the chart's finding, computed from the data:
 
 1. **Uplift by family:** a dot plot with 95% CI whiskers, sorted by the median.
-2. **Uplift vs. post-promo dip:** a scatter by family (does a bigger lift mean a bigger hangover?).
+2. **Promo payback (revised 2026-09-26):** net lift per family (promotion + the week after vs. the baseline for
+   both), a ranked dot plot with 95% CI, coloured by whether the CI clears zero. It replaced an uplift-vs-dip scatter
+   whose outliers squashed the other families and which never answered its own question.
 3. **Holiday/payday check:** median uplift for events that touch a holiday or payday vs. those that don't, per family.
-4. **Stock-out heatmap:** store × ISO week, coloured by flagged runs (or lost units).
+4. **Stock-out heatmap (revised 2026-09-26):** store × ISO week, coloured by the stock-out *rate* (flagged zero days ÷
+   item-days tested; raw counts mostly measured store size), stores worst first with their city, colour capped at the
+   95th percentile, untested weeks blank, and each store's yearly rate as a bar alongside.
 5. **Poisson check:** a histogram of variance ÷ mean, with a reference line at 1.
 
 Notebook 06 displays them and writes standalone HTML to `docs/charts/` for GitHub Pages.

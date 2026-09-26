@@ -6,29 +6,39 @@ import plotly.graph_objects as go
 from favorita_spark import charts
 
 SUMMARY = pd.DataFrame({
-    "family": ["BEVERAGES", "DAIRY", "PRODUCE"],
-    "n_events": [900, 400, 300],
-    "uplift_median": [0.42, 0.18, 0.05],
-    "uplift_lo": [0.38, 0.12, 0.01],
-    "uplift_hi": [0.47, 0.24, 0.09],
-    "n_dip_events": [800, 350, 20],
-    "dip_median": [-0.08, -0.03, float("nan")],
-    "dip_lo": [-0.10, -0.05, float("nan")],
-    "dip_hi": [-0.06, -0.01, float("nan")],
+    "family": ["BEVERAGES", "DAIRY", "PRODUCE", "BREAD"],
+    "n_events": [900, 400, 300, 200],
+    "uplift_median": [0.42, 0.18, 0.05, 0.30],
+    "uplift_lo": [0.38, 0.12, 0.01, 0.25],
+    "uplift_hi": [0.47, 0.24, 0.09, 0.35],
+    "n_dip_events": [800, 350, 20, 150],
+    "dip_median": [-0.08, -0.03, float("nan"), -0.40],
+    "dip_lo": [-0.10, -0.05, float("nan"), -0.45],
+    "dip_hi": [-0.06, -0.01, float("nan"), -0.35],
+    "n_net_events": [800, 350, 20, 150],
+    "net_median": [0.12, 0.02, float("nan"), -0.10],
+    "net_lo": [0.09, -0.01, float("nan"), -0.15],
+    "net_hi": [0.15, 0.05, float("nan"), -0.05],
 })
 
 
-def test_uplift_by_family_is_one_series_with_ci(tmp_path):
+def test_uplift_by_family_is_one_series_with_ci():
     fig = charts.uplift_by_family(SUMMARY)
     (trace,) = fig.data
-    assert list(trace.y) == ["PRODUCE", "DAIRY", "BEVERAGES"]  # biggest uplift at the top
-    assert list(trace.error_x.array) == [4.0, 6.0, 5.0]  # hi − median, in percentage points
-    assert "Promo uplift by family" in fig.layout.title.text
+    assert list(trace.y) == ["PRODUCE", "DAIRY", "BREAD", "BEVERAGES"]  # biggest uplift at the top
+    assert list(trace.error_x.array) == [4.0, 6.0, 5.0, 5.0]  # hi − median, in percentage points
+    assert "BEVERAGES (+42%)" in fig.layout.title.text  # the title states the finding
 
 
-def test_uplift_vs_dip_skips_families_without_a_dip():
-    (trace,) = charts.uplift_vs_dip(SUMMARY).data
-    assert list(trace.text) == ["BEVERAGES", "DAIRY"]
+def test_promo_payback_groups_families_by_their_ci():
+    fig = charts.promo_payback(SUMMARY)
+    groups = {t.name: list(t.y) for t in fig.data}
+    assert groups == {"Pays back (95% CI above 0)": ["BEVERAGES"],
+                      "Unclear (CI spans 0)": ["DAIRY"],
+                      "Loses sales (CI below 0)": ["BREAD"]}  # PRODUCE has no clean week → left out
+    assert list(fig.layout.yaxis.categoryarray) == ["BREAD", "DAIRY", "BEVERAGES"]  # sorted by net lift
+    assert "1 of 3 families" in fig.layout.title.text
+    assert any("+42% lift · -8% after" in a.text for a in fig.layout.annotations)
 
 
 def test_payday_check_compares_two_groups():
@@ -41,18 +51,29 @@ def test_payday_check_compares_two_groups():
     other, touching = fig.data[-2:]
     assert (other.name, touching.name) == ("Other days", "Holiday or payday")
     assert (list(other.x), list(touching.x)) == ([15.0], [60.0])
+    assert "1 of 1 families" in fig.layout.title.text
 
 
-def test_stockout_heatmap_grid():
-    weekly = pd.DataFrame({
-        "store_key": [1, 1, 2],
-        "week_start": [date(2016, 8, 15), date(2016, 8, 22), date(2016, 8, 15)],
-        "flagged_runs": [3, 1, 5],
-        "lost_units": [9.0, 2.0, 20.0],
-    })
-    (trace,) = charts.stockout_heatmap(weekly).data
-    assert list(trace.y) == ["Store 1", "Store 2"]
-    assert trace.z.tolist() == [[3, 1], [5, 0]]
+WEEKLY = pd.DataFrame({
+    "store_key": [1, 1, 2, 2, 3],
+    "city": ["Quito", "Quito", "Cuenca", "Cuenca", "Loja"],
+    "week_start": [date(2016, 8, 15), date(2016, 8, 22), date(2016, 8, 15), date(2016, 8, 22), date(2016, 8, 22)],
+    "flagged_days": [10, 30, 2, 0, 5],
+    "item_days": [1000, 1000, 100, 100, 50],
+    "rate": [0.01, 0.03, 0.02, 0.0, 0.1],
+})
+
+
+def test_stockout_heatmap_ranks_stores_by_rate():
+    fig = charts.stockout_heatmap(WEEKLY)
+    heat, bars = fig.data
+    # yearly rates: store 3 = 10%, store 1 = 2%, store 2 = 1% → worst first
+    assert list(heat.y) == ["Store 3 · Loja", "Store 1 · Quito", "Store 2 · Cuenca"]
+    assert [round(v, 6) for v in bars.x] == [10.0, 2.0, 1.0]
+    z = heat.z
+    assert pd.isna(z[0][0])  # store 3 wasn't tested in the first week: blank, not zero
+    assert (z[1][0], z[1][1], z[2][1]) == (1.0, 3.0, 0.0)
+    assert "Store 3 · Loja" in fig.layout.title.text
 
 
 def test_poisson_check_reports_overdispersion():

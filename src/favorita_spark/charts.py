@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 SURFACE = "#fcfcfb"
 INK = "#0b0b0b"
@@ -32,7 +33,7 @@ def _style(fig: go.Figure, title: str, subtitle: str, x_title: str, y_title: str
                    font=dict(color=INK, size=18), x=0, xanchor="left"),
         paper_bgcolor=SURFACE, plot_bgcolor=SURFACE, height=height,
         font=dict(family=FONT, color=INK_2, size=13),
-        margin=dict(l=16, r=24, b=48, t=fig.layout.margin.t or 88),
+        margin=dict(l=16, r=fig.layout.margin.r or 24, b=fig.layout.margin.b or 48, t=fig.layout.margin.t or 88),
         hoverlabel=dict(bgcolor="white", bordercolor=GRID, font=dict(color=INK, family=FONT)),
         legend=dict(orientation="h", x=0, y=1.02, yanchor="bottom", font=dict(color=INK_2)),
     )
@@ -43,6 +44,12 @@ def _style(fig: go.Figure, title: str, subtitle: str, x_title: str, y_title: str
 
 def _pct(s: pd.Series) -> list[float]:
     return (s * 100).round(2).tolist()
+
+
+def _signed(share: float) -> str:
+    """0.42 → '+42%'; a value that rounds to zero prints as '0%', never '-0%'."""
+    pct = round(share * 100)
+    return f"{pct:+d}%" if pct else "0%"
 
 
 def _dot(color: str) -> dict:
@@ -60,25 +67,44 @@ def uplift_by_family(summary: pd.DataFrame) -> go.Figure:
                       "%{customdata[2]:.1f}%<br>%{customdata[0]:,} events<extra></extra>",
     ))
     fig.add_vline(x=0, line_color=AXIS, line_width=1)
-    return _style(fig, "Promo uplift by family",
-                  "Median extra units on promotion days vs. the item's normal baseline · 95% bootstrap CI",
+    top = s.iloc[-1]
+    return _style(fig, f"Promotions lift units most in {top.family} (+{top.uplift_median * 100:.0f}%)",
+                  "Promo uplift by family: median extra units on promotion days vs. the item's normal baseline · 95% bootstrap CI",
                   "Uplift (%)", height=max(360, 22 * len(s) + 140))
 
 
-def uplift_vs_dip(summary: pd.DataFrame) -> go.Figure:
-    s = summary.dropna(subset=["dip_median"])
-    fig = go.Figure(go.Scatter(
-        x=_pct(s.uplift_median), y=_pct(s.dip_median), text=s.family.tolist(), mode="markers", marker=_dot(BLUE),
-        hovertemplate="<b>%{text}</b><br>Uplift %{x:.1f}%<br>Post-promo dip %{y:.1f}%<extra></extra>",
-    ))
-    # label only the two extremes (biggest lift, deepest dip); the tooltip carries the rest
-    for _, r in pd.concat([s.nlargest(1, "uplift_median"), s.nsmallest(1, "dip_median")]).drop_duplicates("family").iterrows():
-        fig.add_annotation(x=r.uplift_median * 100, y=r.dip_median * 100, text=r.family, showarrow=False,
-                           xanchor="left", xshift=8, font=dict(color=INK_2, size=12))
-    fig.add_hline(y=0, line_color=AXIS, line_width=1)
-    return _style(fig, "Does a bigger lift mean a bigger hangover?",
-                  "Median promo uplift vs. median change in the 7 days after, per family",
-                  "Uplift during promotion (%)", "Change in the week after (%)")
+def promo_payback(summary: pd.DataFrame) -> go.Figure:
+    """Net lift per family: promotion + the following week against the baseline for both, so a promotion
+    that only pulled sales forward nets out near zero. Colour says whether the 95% CI clears zero."""
+    s = summary.dropna(subset=["net_median"]).sort_values("net_median")
+    status = np.select([s.net_lo > 0, s.net_hi < 0], ["pays", "loses"], "unclear")
+    fig = go.Figure()
+    for key, name, color in (("pays", "Pays back (95% CI above 0)", BLUE),
+                             ("unclear", "Unclear (CI spans 0)", MUTED),
+                             ("loses", "Loses sales (CI below 0)", ORANGE)):
+        g = s[status == key]
+        if g.empty:
+            continue
+        fig.add_trace(go.Scatter(
+            x=_pct(g.net_median), y=g.family, mode="markers", name=name, marker=_dot(color),
+            error_x=dict(type="data", symmetric=False, array=_pct(g.net_hi - g.net_median),
+                         arrayminus=_pct(g.net_median - g.net_lo), color=color, thickness=1.5, width=0),
+            customdata=np.stack([_pct(g.uplift_median), _pct(g.dip_median), g.n_net_events], axis=-1),
+            hovertemplate="<b>%{y}</b><br>Net lift %{x:.1f}%<br>During the promotion %{customdata[0]:+.0f}% · "
+                          "week after %{customdata[1]:+.0f}%<br>%{customdata[2]:,} events with a clean week<extra></extra>",
+        ))
+    # the working behind each net number, as a muted text column right of the plot
+    for _, r in s.iterrows():
+        fig.add_annotation(xref="paper", x=1.01, xanchor="left", y=r.family, text=(
+            f"{_signed(r.uplift_median)} lift · {_signed(r.dip_median)} after"),
+            showarrow=False, font=dict(color=MUTED, size=11))
+    fig.add_vline(x=0, line_color=AXIS, line_width=1)
+    fig.update_yaxes(categoryorder="array", categoryarray=s.family.tolist())
+    fig.update_layout(margin_t=120, margin_r=190)
+    return _style(fig, f"Promotions still pay back in {(status == 'pays').sum()} of {len(s)} families",
+                  "Net lift: units during the promotion and the week after vs. the item's normal baseline · "
+                  "median per family, 95% bootstrap CI",
+                  "Net lift after the post-promotion dip (%)", height=max(380, 22 * len(s) + 180))
 
 
 def payday_check(events: pd.DataFrame, min_events: int = 30) -> go.Figure:
@@ -93,23 +119,43 @@ def payday_check(events: pd.DataFrame, min_events: int = 30) -> go.Figure:
         fig.add_trace(go.Scatter(x=_pct(g[col]), y=g.index, mode="markers", name=name, marker=_dot(color),
                                  hovertemplate=f"<b>%{{y}}</b><br>{name}: %{{x:.1f}}%<extra></extra>"))
     fig.update_layout(margin_t=120)  # room for the legend between subtitle and plot
-    return _style(fig, "Holidays and paydays flatter promotions",
+    return _style(fig, f"Holidays and paydays inflate promo uplift in {(g.gap > 0).sum()} of {len(g)} families",
                   "Median uplift of promo events that touch a national holiday or payday (15th, month-end) vs. the rest",
                   "Median uplift (%)", height=max(360, 22 * len(g) + 160))
 
 
-def stockout_heatmap(weekly: pd.DataFrame, value: str = "flagged_runs") -> go.Figure:
-    grid = weekly.pivot_table(index="store_key", columns="week_start", values=value, aggfunc="sum", fill_value=0)
-    fig = go.Figure(go.Heatmap(
-        z=grid.to_numpy(), x=[pd.Timestamp(w) for w in grid.columns], y=[f"Store {s}" for s in grid.index],
-        colorscale=[[i / (len(BLUE_RAMP) - 1), c] for i, c in enumerate(BLUE_RAMP)], xgap=2, ygap=2,
-        colorbar=dict(title=dict(text="Flagged runs" if value == "flagged_runs" else "Lost units"), outlinewidth=0),
-        hovertemplate="%{y}, week of %{x|%d %b %Y}<br>%{z:,}<extra></extra>",
-    ))
-    fig.update_yaxes(autorange="reversed")
-    return _style(fig, "Where and when shelves ran empty",
-                  "Zero-sale runs flagged at a 5% false discovery rate, per store and week",
-                  "", height=max(420, 14 * len(grid) + 160))
+def stockout_heatmap(weekly: pd.DataFrame) -> go.Figure:
+    """Stock-out rate (share of tested item-days inside a flagged run) per store and week, stores worst
+    first, with each store's yearly rate as a bar alongside. Untested store-weeks stay blank."""
+    w = weekly.assign(label="Store " + weekly.store_key.astype(str) + " · " + weekly.city.fillna("?"))
+    per_store = w.groupby("label")[["flagged_days", "item_days"]].sum()
+    per_store = (per_store.flagged_days / per_store.item_days).sort_values(ascending=False)
+    order = per_store.index.tolist()
+    grid = w.pivot_table(index="label", columns="week_start", values="rate", aggfunc="sum").reindex(order)
+    z = (grid.to_numpy() * 100).round(4)
+    weeks = [pd.Timestamp(c) for c in grid.columns]
+    text = [[f"{lab}<br>Week of {wk:%d %b %Y}<br>" + ("not tested" if np.isnan(v) else f"{v:.1f}% of item-days empty")
+             for wk, v in zip(weeks, row)] for lab, row in zip(order, z)]
+    fig = make_subplots(rows=1, cols=2, shared_yaxes=True, column_widths=[0.82, 0.18], horizontal_spacing=0.015)
+    fig.add_trace(go.Heatmap(
+        z=z, x=weeks, y=order, text=text, hovertemplate="%{text}<extra></extra>", xgap=1, ygap=1,
+        # capped at the 95th percentile so one extreme week doesn't wash out the rest
+        zmin=0, zmax=float(np.nanpercentile(z, 95)),
+        colorscale=[[i / (len(BLUE_RAMP) - 1), c] for i, c in enumerate(BLUE_RAMP)],
+        colorbar=dict(title=dict(text="% of item-days empty", side="top"), orientation="h", x=0, xanchor="left",
+                      y=-0.04, yanchor="top", len=0.4, thickness=10, outlinewidth=0),
+    ), 1, 1)
+    fig.add_trace(go.Bar(
+        x=(per_store * 100).round(4).tolist(), y=order, orientation="h", showlegend=False,
+        marker=dict(color=BLUE, cornerradius=4), hovertemplate="%{y}<br>%{x:.1f}% over the year<extra></extra>",
+    ), 1, 2)
+    fig.update_yaxes(autorange="reversed", tickmode="array", tickvals=order)  # every store labelled
+    fig.update_xaxes(title_text="Whole year (%)", row=1, col=2)
+    fig.update_layout(margin_b=90)
+    return _style(fig, f"{order[0]} ran empty most often: {per_store.iloc[0]:.1%} of item-days",
+                  "Share of tested item-days inside a flagged zero-sale run (5% FDR) per store and week · "
+                  "worst stores first · colour capped at the 95th percentile",
+                  "", height=max(460, 17 * len(order) + 200))
 
 
 def poisson_check(disp: pd.DataFrame) -> go.Figure:
