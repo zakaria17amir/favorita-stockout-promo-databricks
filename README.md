@@ -62,7 +62,7 @@ It's compared with the item's normal rate: its average over the previous 28 trad
 | Statistics | Negative-binomial run test (vs. Poisson), Benjamini–Hochberg FDR, bootstrap CIs | Built and tested |
 | Plotly | Uplift with CIs, uplift vs. dip, holiday/payday check, stock-out heatmap, overdispersion check | Built |
 | Testing | pytest on local Spark; Project 1's fixture must give the same numbers as Project 1 | Built |
-| Interoperability | Same table contract as Project 1, reconciled row by row; Power BI via the Databricks connector | Planned |
+| Interoperability | Same table contract as Project 1, reconciled row by row; Power BI via the Databricks connector | Connector tested; reconciliation pending |
 
 ## Architecture
 
@@ -147,7 +147,7 @@ python -m venv .venv
 - [x] Pipeline, statistics and charts, tested on local Spark
 - [ ] First run on Databricks Free Edition (runtimes, daily-cap notes)
 - [ ] Reconciliation against Project 1 → `docs/reconciliation.md`
-- [ ] Power BI connection test (token login from BI tools on Free Edition) → ADR
+- [x] Power BI connection test: token login works on Free Edition via the Azure Databricks connector ([ADR-002](docs/decisions/ADR-002-power-bi-link.md))
 - [ ] Results table and chart screenshots in this README
 
 ## Data

@@ -1,6 +1,6 @@
 # ADR-002: How Power BI reads the Databricks gold tables
 
-- Status: Proposed. It becomes Accepted after the day-one connector test.
+- Status: Accepted (2026-09-26, after the day-one connector test)
 
 ## Context
 Project 1 (Store Performance Cockpit) should read these gold tables in two ways:
@@ -16,11 +16,16 @@ The Free Edition documentation doesn't say whether BI tools can authenticate wit
    lakehouse (Files → Load to Tables). This always works, but it's a manual copy.
 
 ## Decision
-Option 1 if the day-one test (notebook `00_setup`) succeeds, otherwise option 2. Import mode in both cases:
+**Option 1.** The day-one test succeeded. Option 2 stays as the documented fallback. Import mode in both cases:
 the analysis tables are small, and Import keeps Project 1's refresh independent of a free warehouse.
 
 ## Test result
-_Fill in: date, Power BI Desktop version, works / fails, error message if any._
+- **2026-09-26: works.** Power BI Desktop loaded `workspace.gold.connector_check` (one row: "hello from
+  Databricks Free Edition" plus a timestamp) from the Free Edition SQL warehouse with a personal access token, in Import mode.
+- **Gotcha:** the first attempt, with the plain **Databricks** connector, failed with
+  `ADBC: Required parameter 'adbc.spark.host' or 'uri' is missing or invalid`. Microsoft's docs reserve that
+  connector for AWS warehouses that use OAuth. With a personal access token, use the **Azure Databricks** connector
+  (it works for AWS workspaces too), and enter the server hostname without `https://` or a trailing slash.
 
 ## Consequences
 + Either way, Project 1's existing model is unchanged. The new tables go on a separate deep-dive page.
