@@ -123,7 +123,7 @@ def poisson_check(disp: pd.DataFrame) -> go.Figure:
     fig.update_xaxes(tickvals=np.log10(ticks).tolist(), ticktext=[f"{t:g}" for t in ticks])
     fig.update_layout(bargap=0.05)
     return _style(fig, f"{share:.0%} of store-items vary more than Poisson assumes",
-                  "Variance ÷ mean of daily units. Above 1, the run test over-flags; a negative-binomial model would fix it",
+                  "Variance ÷ mean of daily units. Above 1, a Poisson test over-flags, so the run test uses a negative binomial",
                   "Variance ÷ mean (log scale)", "Store-items")
 
 

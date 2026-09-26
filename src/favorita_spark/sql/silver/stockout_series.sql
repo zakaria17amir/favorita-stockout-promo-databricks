@@ -33,6 +33,7 @@ SELECT
     s.store_nbr IS NULL AS no_sale_row,
     coalesce(f.full_day, false) AS full_day,
     avg(coalesce(s.units, 0)) OVER prev AS lambda_units,
+    var_samp(coalesce(s.units, 0)) OVER prev AS var_units,  -- for the negative-binomial run test
     count(*) OVER prev AS history_days
 FROM spine AS sp
 JOIN full_days AS f

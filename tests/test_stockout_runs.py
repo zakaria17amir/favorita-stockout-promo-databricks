@@ -6,12 +6,13 @@ import pytest
 from favorita_spark.stockout import bh_summary, dispersion, flag_bh, stockout_runs, weekly_flags
 
 SERIES_SCHEMA = ("store_nbr INT, item_nbr INT, date DATE, units DOUBLE, no_sale_row BOOLEAN, "
-                 "full_day BOOLEAN, lambda_units DOUBLE, history_days BIGINT")
+                 "full_day BOOLEAN, lambda_units DOUBLE, var_units DOUBLE, history_days BIGINT")
 
 
-def series(spark, item, pattern, start=date(2016, 1, 1), lam=2.0, history=28):
-    """pattern: 'S' = sale (2 units), '0' = zero on a full day, 'p' = zero on a partial day."""
-    rows = [(1, item, start + timedelta(days=i), 2.0 if c == "S" else 0.0, c != "S", c != "p", lam, history)
+def series(spark, item, pattern, start=date(2016, 1, 1), lam=2.0, history=28, var=0.0):
+    """pattern: 'S' = sale (2 units), '0' = zero on a full day, 'p' = zero on a partial day.
+    var = trailing variance; ≤ λ means no overdispersion, so the test falls back to Poisson."""
+    rows = [(1, item, start + timedelta(days=i), 2.0 if c == "S" else 0.0, c != "S", c != "p", lam, var, history)
             for i, c in enumerate(pattern)]
     return spark.createDataFrame(rows, SERIES_SCHEMA)
 
@@ -35,7 +36,15 @@ def test_fixture_runs_match_the_single_day_flags(warehouse, cfg):
 def test_run_probability_is_poisson_zero_run(spark, cfg):
     runs = by_item(stockout_runs(series(spark, 1, "S000S"), cfg))
     assert (runs[1].run_days, runs[1].spine_days, runs[1].calendar_days) == (3, 3, 3)
-    assert runs[1].p_value == pytest.approx(math.exp(-2.0 * 3))
+    assert runs[1].p_value == runs[1].p_poisson == pytest.approx(math.exp(-2.0 * 3))
+
+
+def test_overdispersed_item_uses_negative_binomial(spark, cfg):
+    # λ = 2, variance 6 → φ = 3. NB zero-day probability φ^(−λ/(φ−1)) = 3^(−1); three days → 3^(−3)
+    (run,) = stockout_runs(series(spark, 1, "S000S", var=6.0), cfg).collect()
+    assert run.dispersion == pytest.approx(3.0)
+    assert run.p_value == pytest.approx(1 / 27)
+    assert run.p_poisson == pytest.approx(math.exp(-6))  # Poisson would call this far less likely
 
 
 def test_partial_day_neither_counts_nor_breaks_the_run(spark, cfg):
@@ -85,3 +94,8 @@ def test_weekly_flags(spark):
         "store_key INT, start_date_key INT, is_flagged BOOLEAN, expected_lost_units DOUBLE")
     rows = sorted(tuple(r) for r in weekly_flags(runs).collect())
     assert rows == [(1, date(2016, 1, 4), 2, 5.0), (1, date(2016, 1, 11), 1, 1.0)]
+
+
+def test_dispersion_of_exactly_one_is_poisson(spark, cfg):
+    (run,) = stockout_runs(series(spark, 1, "S00S", var=2.0), cfg).collect()  # φ = 2 / 2 = 1
+    assert run.p_value == pytest.approx(math.exp(-4))

@@ -23,7 +23,7 @@ Results are shown as interactive Plotly charts and feed Project 1 in two ways:
 - **New analysis tables:** `fact_stockout_run`, `fact_promo_event` and `promo_family_summary`. They
   appear in Power BI as an extra deep-dive page.
 
-Out of scope: forecasting and ML models, negative-binomial models (named as the upgrade path only),
+Out of scope: forecasting and ML models,
 difference-in-differences promo analysis (the check chart exposes the bias it would fix), and
 scheduled jobs.
 
@@ -64,7 +64,9 @@ trading days (receipts > 0) between the pair's first and last sale in the slice.
   average). A partial day inside a run doesn't count as evidence, but it doesn't break the run either.
 - **λ:** the average units over the 28 spine rows before the run starts. This is the same definition as
   `expected_units` in `fact_stockout_risk`, so a one-day run has the same λ in both tables.
-- **p-value:** p = P(k zero days | Poisson(λ)) = e^(−λk).
+- **p-value (revised 2026-09-26, ADR-003):** negative binomial with mean λ and dispersion φ = variance ÷ mean,
+  both over the same 28 spine rows: p = φ^(−λk/(φ−1)). When φ ≤ 1 this is Poisson, p = e^(−λk), and `p_poisson`
+  is kept for comparison. The original Poisson-only design flagged 38% of runs on real data because the median φ was 4.4.
 - **Tested runs:** runs that start inside the analysis window, have 28 rows of history, have λ > 0 and k ≥ 1,
   **resume** (a sale follows the run), and have k ≤ 28 (longer gaps look like delisting, which matches
   Project 1's "resumes within 28 days" rule).
@@ -75,9 +77,9 @@ trading days (receipts > 0) between the pair's first and last sale in the slice.
   bound on how many flags chance alone would produce.
 - **Columns:** `store_key, item_key, start_date_key, end_date_key, run_days (k), calendar_days,
   lambda_units, p_value, is_flagged, expected_lost_units (= λ·k)`. All tested runs are kept, and the model filters `is_flagged`.
-- **Assumption check:** variance ÷ mean of daily units per store-item over the window. A value above 1 means
+- **Overdispersion chart:** variance ÷ mean of daily units per store-item over the window. A value above 1 means
   more variation than Poisson assumes (overdispersion), which inflates flags. The chart and the README state this, and
-  negative-binomial is named as the upgrade path.
+  the chart explains why the run test uses a negative binomial.
 
 `ponytail:` BH needs one global ranking, so it runs as a single-partition window over the run table. That's fine for
 a few million rows. Switch to an approximate quantile if it ever grows past that.
@@ -92,7 +94,7 @@ Built on the contract `fact_sales` (on_promo, baseline_units):
 - **Uplift:** Σ units on event days ÷ (baseline × event days) − 1.
 - **Post-promo dip:** the 7 calendar days after the event ends. Missing sales rows count as zero, expected =
   baseline × trading days in that window, and dip = actual ÷ expected − 1. It's NULL when another promo event for the
-  pair starts inside those 7 days or the window runs past the end of the data.
+  pair starts inside those 7 days or the window runs past the end of the data. Real data: about 1 in 6 events has a clean week; the rule is kept because overlapping weeks mix the dip with the next lift.
 - **Holiday/payday flag:** `touches_payday_or_holiday` is true if any event day is a national holiday or a public-sector
   payday (the 15th or the last day of the month).
 - Only events that start inside the analysis window are kept.

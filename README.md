@@ -22,24 +22,32 @@ tables feed the Power BI [Store Performance Cockpit](https://github.com/zakaria1
 
 ## The statistics, in plain words
 
-**Stock-outs, without machine learning.** If an item normally sells λ units a day, the chance of
-seeing *k* trading days in a row with no sales at all is `p = e^(−λk)` (Poisson). An item that sells
-6 a day and then sells nothing for 2 days has p = e^(−12) ≈ 0.000006, so something is wrong on the shelf.
+**Stock-outs, without machine learning.** If an item normally sells λ units a day, how likely is it
+to sell nothing at all for *k* trading days in a row? If that's very unlikely, something is wrong on the shelf.
 
-- λ is the item's average over the previous 28 trading days, with days without sales counted as zero.
+- The textbook answer is Poisson: `p = e^(−λk)`. But real grocery demand is lumpy. On Favorita the variance is
+  about **4× the mean**, so zero days happen far more often than Poisson expects. On a real 3-store trial,
+  Poisson flagged **38%** of all zero-sale runs.
+- So the test uses a **negative binomial**: the same mean λ, plus the item's own dispersion φ = variance ÷ mean,
+  both from the previous 28 trading days. A zero day then has probability `φ^(−λ/(φ−1))`, and a run of k days
+  has that to the power k. On the same trial it flags **11.4%**. It's one extra number per item and still
+  explainable in a sentence. When φ ≤ 1 it's
+  exactly Poisson. The Poisson p-value is kept next to it for comparison. See [ADR-003](docs/decisions/ADR-003-negative-binomial-run-test.md).
 - A run only counts if the item **sells again afterwards**, within 28 trading days. A gap that never
   ends is a delisting, not a stock-out.
 - Days when the store traded at less than half its normal footfall don't count as evidence.
 - **We test millions of runs**, so a plain 5% cut-off would flag thousands by chance. We use
   **Benjamini–Hochberg**: *of the runs we flag, at most 5% are expected to be chance.*
-- **Known weakness:** grocery sales vary more than Poisson assumes (variance > mean), which makes the
-  test flag too much. The Poisson-check chart measures this. The upgrade path is a negative-binomial model.
+- **Still assumed:** days are independent. Real stock-outs cluster (one empty shelf lasts), which is fine for
+  flagging, but it means the p-values shouldn't be read as exact probabilities.
 
 **Promo uplift.** A promo event is a run of consecutive promotion days for one item in one store.
 It's compared with the item's normal rate: its average over the previous 28 trading days, excluding promotion days.
 
 - Uplift = actual units ÷ (baseline × days) − 1.
 - Post-promo dip = the same comparison over the 7 days after the event (customers who stocked up buy less).
+  It's only measured when the following week is promotion-free. On Favorita the next promotion often starts
+  within 7 days, so about 1 in 6 events has a clean week. The rest would mix the dip with the next lift.
 - Each family gets the **median** uplift with a **bootstrap 95% confidence interval** (1,000 resamples of events).
 - **Known bias:** promotions that fall on holidays or paydays (the 15th and the month-end) look better than
   they are. A check chart splits them out.
@@ -51,8 +59,8 @@ It's compared with the item's normal rate: its average over the previous 28 trad
 | Databricks | Free Edition: serverless notebooks, Unity Catalog, volumes, Delta tables | Built, first run pending |
 | PySpark | Bronze load, run detection with window functions, BH ranking, promo events | Built and tested |
 | Spark SQL | Silver and gold contract tables, ported from Project 1's DuckDB SQL | Built, parity-tested |
-| Statistics | Poisson run test, Benjamini–Hochberg FDR, bootstrap CIs, an overdispersion check | Built and tested |
-| Plotly | Uplift with CIs, uplift vs. dip, holiday/payday check, stock-out heatmap, Poisson check | Built |
+| Statistics | Negative-binomial run test (vs. Poisson), Benjamini–Hochberg FDR, bootstrap CIs | Built and tested |
+| Plotly | Uplift with CIs, uplift vs. dip, holiday/payday check, stock-out heatmap, overdispersion check | Built |
 | Testing | pytest on local Spark; Project 1's fixture must give the same numbers as Project 1 | Built |
 | Interoperability | Same table contract as Project 1, reconciled row by row; Power BI via the Databricks connector | Planned |
 

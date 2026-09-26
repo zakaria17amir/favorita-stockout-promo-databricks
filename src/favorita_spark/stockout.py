@@ -1,8 +1,14 @@
-"""Stock-out detection without ML: zero-sale runs that are too unlikely under a Poisson baseline.
+"""Stock-out detection without ML: zero-sale runs that are too unlikely given the item's normal rate.
 
-If an item normally sells λ units a day, k full trading days in a row with no sale have
-probability p = e^(−λk). Millions of runs are tested at once, so the flags are chosen with
-Benjamini–Hochberg: of the runs flagged, at most q (5%) are expected to be chance.
+Poisson: an item that sells λ units a day has k zero days in a row with probability e^(−λk). But real
+grocery demand varies far more than Poisson allows (variance ÷ mean ≈ 4 on Favorita), which makes zero
+days commoner and Poisson over-flags. So the test uses a negative binomial with the same mean λ and the
+item's own dispersion φ = variance ÷ mean, both from the previous 28 trading days:
+P(zero day) = φ^(−λ/(φ−1)), and p = that to the power k. When φ ≤ 1 it is Poisson; the Poisson
+p-value is kept alongside for comparison.
+
+Millions of runs are tested at once, so the flags are chosen with Benjamini–Hochberg: of the runs
+flagged, at most q (5%) are expected to be chance.
 """
 from pyspark.sql import DataFrame, Window
 from pyspark.sql import functions as F
@@ -33,6 +39,7 @@ def stockout_runs(series: DataFrame, cfg: Config) -> DataFrame:
         F.count("*").alias("spine_days"),
         # λ and history as they stood on the run's first day
         F.min_by("lambda_units", "date").alias("lambda_units"),
+        F.min_by("var_units", "date").alias("var_units"),
         F.min_by("history_days", "date").alias("history_days"),
     )
     tested = runs.filter(
@@ -42,6 +49,11 @@ def stockout_runs(series: DataFrame, cfg: Config) -> DataFrame:
         & (F.col("run_days") >= 1)
         & (F.col("spine_days") <= cfg.max_run_days)
     )
+    lam, k = F.col("lambda_units"), F.col("run_days")
+    phi = F.coalesce(F.col("var_units"), F.lit(0.0)) / lam
+    # ln P(k zero days) = −kλ·ln φ/(φ−1) under the negative binomial; it tends to −kλ (Poisson) as φ → 1
+    p_nb = F.exp(-k * lam * F.log(phi) / (phi - 1))
+    p_poisson = F.exp(-lam * k)
     return tested.select(
         F.col("store_nbr").alias("store_key"),
         F.col("item_nbr").alias("item_key"),
@@ -51,7 +63,9 @@ def stockout_runs(series: DataFrame, cfg: Config) -> DataFrame:
         "spine_days",
         (F.datediff("end_date", "start_date") + 1).alias("calendar_days"),
         "lambda_units",
-        F.exp(-F.col("lambda_units") * F.col("run_days")).alias("p_value"),
+        phi.alias("dispersion"),
+        F.when(phi > 1, p_nb).otherwise(p_poisson).alias("p_value"),
+        p_poisson.alias("p_poisson"),
         (F.col("lambda_units") * F.col("run_days")).alias("expected_lost_units"),
     )
 
