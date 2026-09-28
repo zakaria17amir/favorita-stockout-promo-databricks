@@ -7,8 +7,8 @@ bronze → silver → gold, and two questions get answered with statistics you c
 sentence: *which zero-sale days are stock-outs?* and *what do promotions really add?* The gold
 tables feed the Power BI [Store Performance Cockpit](https://github.com/zakaria17amir/store-performance-fabric).
 
-> **Status:** the full year has run on Databricks Free Edition and reconciles with Project 1
-> (see [reconciliation](docs/reconciliation.md)). Next: the deep-dive page in Project 1's Power BI report.
+> The full year runs on Databricks Free Edition as a job deployed by GitHub Actions, reconciles row by row with
+> Project 1 ([reconciliation](docs/reconciliation.md)), and feeds Project 1's *Stock-outs and Promo Payback* report live.
 
 ---
 
@@ -104,7 +104,7 @@ It's compared with the item's normal rate: its average over the previous 28 trad
 | Plotly | Uplift and net payback with CIs, holiday/payday check, stock-out rate heatmap, overdispersion check | Built, see [Results](#results) |
 | Testing | pytest on local Spark; Project 1's fixture must give the same numbers as Project 1 | Built |
 | CI/CD | GitHub Actions: tests, bundle validation, and deploys the Databricks Job on every merge | Built |
-| Interoperability | Same table contract as Project 1, reconciled row by row; Power BI via the Databricks connector | Reconciled; connector tested |
+| Interoperability | Same table contract as Project 1, reconciled row by row; Power BI reads the gold tables live | Reconciled; used by Project 1's deep-dive report |
 
 ## Architecture
 
@@ -120,7 +120,8 @@ flowchart LR
         GN --> P["Plotly charts"]
     end
     GC -->|"Parquet export"| R["reconcile.py<br/>vs Project 1 DuckDB gold"]
-    GC --> PBI["Power BI<br/>Databricks connector<br/>(fallback: OneLake Parquet)"]
+    GC --> PBI["Power BI (Project 1)<br/>Azure Databricks connector<br/>deep-dive report"]
+    GH["GitHub Actions<br/>tests · bundle deploy"] -.->|"deploys the job"| DBX
     GN --> PBI
 ```
 
@@ -200,16 +201,23 @@ Merges deploy the job but never run it, because each run uses part of Free Editi
 credential is a `DATABRICKS_TOKEN` repository secret (the workspace host is in `databricks.yml`). Until it's set,
 the Databricks steps are skipped with a notice. To deploy from a laptop instead: `databricks bundle deploy -t dev`.
 
-## Roadmap
+## Used by Power BI
 
-- [x] Pipeline, statistics and charts, tested on local Spark
-- [x] Full-year run on Databricks Free Edition, within the daily compute cap
-- [x] Reconciliation against Project 1: all checks pass ([report](docs/reconciliation.md))
-- [x] Power BI connection test: token login works on Free Edition via the Azure Databricks connector ([ADR-002](docs/decisions/ADR-002-power-bi-link.md))
-- [x] Results and charts in this README
-- [x] CI/CD: GitHub Actions deploys the pipeline as a Databricks Job ([`databricks.yml`](databricks.yml))
-- [ ] Stock-out and promo deep-dive report in Project 1 (pull request open:
-      [store-performance-fabric#28](https://github.com/zakaria17amir/store-performance-fabric/pull/28))
+Project 1's semantic model reads five of these gold tables live from the Databricks SQL warehouse (Azure Databricks
+connector, personal access token, Import) and shows them in its *Stock-outs and Promo Payback* report:
+
+| Gold table | Power BI table |
+|---|---|
+| `fact_stockout_run` (flagged runs) | Stock-out Run |
+| `stockout_store_week` | Stock-out Store Week |
+| `fact_promo_event` | Promo Event |
+| `promo_family_summary` | Promo Payback |
+| `stockout_bh_summary` | Stock-out Test |
+
+Project 1's store-level security filters them like its own tables. A contract test there fails if the model reads a
+column that isn't published here. The connector choice and its refresh trade-off: [ADR-002](docs/decisions/ADR-002-power-bi-link.md)
+here and [ADR-012](https://github.com/zakaria17amir/store-performance-fabric/blob/main/docs/decisions/ADR-012-databricks-second-source.md)
+in Project 1.
 
 ## Data
 
