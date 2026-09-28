@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      run_pipeline:
+        description: After deploying, run the full pipeline on Databricks (uses part of the daily compute cap)
+        type: boolean
+        default: false
 
 jobs:
   tests:
@@ -19,3 +25,39 @@ jobs:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
       - run: pytest -q
+
+  bundle-validate:
+    needs: tests
+    runs-on: ubuntu-latest
+    env:
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - if: env.DATABRICKS_TOKEN == ''
+        run: echo "::notice::DATABRICKS_TOKEN secret not set; skipping bundle validation"
+      - if: env.DATABRICKS_TOKEN != ''
+        uses: databricks/setup-cli@v1.18.0
+      - if: env.DATABRICKS_TOKEN != ''
+        run: databricks bundle validate -t prod
+
+  deploy:
+    needs: bundle-validate
+    # deploy only from main; the job itself runs only when asked for (workflow_dispatch + run_pipeline)
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    concurrency:
+      group: databricks-prod
+      cancel-in-progress: false
+    env:
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - if: env.DATABRICKS_TOKEN == ''
+        run: echo "::notice::DATABRICKS_TOKEN secret not set; skipping deploy"
+      - if: env.DATABRICKS_TOKEN != ''
+        uses: databricks/setup-cli@v1.18.0
+      - if: env.DATABRICKS_TOKEN != ''
+        run: databricks bundle deploy -t prod
+      - if: env.DATABRICKS_TOKEN != '' && github.event_name == 'workflow_dispatch' && inputs.run_pipeline
+        run: databricks bundle run favorita_pipeline -t prod

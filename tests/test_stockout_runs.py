@@ -101,6 +101,7 @@ def test_weekly_stockout_rate(spark, cfg):
     rows = {r.store_key: r for r in weekly_stockout_rate(runs, series, stores, cfg).collect()}
     assert (rows[1].week_start, rows[1].city, rows[1].item_days, rows[1].flagged_days) == (date(2016, 1, 4), "Quito", 10, 2)
     assert rows[1].rate == pytest.approx(0.2)
+    assert rows[1].week_start_key == 20160104  # joins Project 1's Date table
     assert (rows[2].flagged_days, rows[2].rate) == (0, 0.0)
 
 

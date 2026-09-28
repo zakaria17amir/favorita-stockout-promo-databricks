@@ -129,4 +129,5 @@ def weekly_stockout_rate(runs_flagged: DataFrame, series: DataFrame, stg_store: 
         .fillna(0, ["flagged_days"])
         .join(stg_store.select("store_key", "city"), "store_key", "left")
         .withColumn("rate", F.col("flagged_days") / F.col("item_days"))
+        .withColumn("week_start_key", _date_key("week_start"))  # Power BI relates this to its Date table
     )

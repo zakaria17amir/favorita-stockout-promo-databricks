@@ -1,0 +1,60 @@
+# Declarative Automation Bundle (formerly Databricks Asset Bundle): the pipeline as one job.
+# Deploy:  databricks bundle deploy -t dev      (from a laptop)
+#          GitHub Actions deploys -t prod on every merge to main; it never runs the job on its own.
+# Run:     databricks bundle run favorita_pipeline -t prod   (or the "Run workflow" button in GitHub Actions)
+bundle:
+  name: favorita_stockout_promo
+
+workspace:
+  host: https://dbc-ecb852ca-9ebf.cloud.databricks.com  # not a secret; the token is (DATABRICKS_TOKEN)
+
+resources:
+  jobs:
+    favorita_pipeline:
+      name: favorita-pipeline
+      description: >-
+        Favorita stock-out and promo analysis: raw CSVs → bronze → silver → gold, negative-binomial stock-out runs,
+        promo events, Plotly charts, data checks and Parquet export (notebooks 00–07).
+      max_concurrent_runs: 1
+      # no cluster: every task runs on serverless compute, the only option on Free Edition
+      tasks:
+        - task_key: setup
+          notebook_task:
+            notebook_path: ./notebooks/00_setup.ipynb
+        - task_key: bronze
+          depends_on: [{ task_key: setup }]
+          notebook_task:
+            notebook_path: ./notebooks/01_bronze.ipynb
+        - task_key: silver
+          depends_on: [{ task_key: bronze }]
+          notebook_task:
+            notebook_path: ./notebooks/02_silver.ipynb
+        - task_key: gold_contract
+          depends_on: [{ task_key: silver }]
+          notebook_task:
+            notebook_path: ./notebooks/03_gold_contract.ipynb
+        - task_key: stockout_runs
+          depends_on: [{ task_key: gold_contract }]
+          notebook_task:
+            notebook_path: ./notebooks/04_stockout_runs.ipynb
+        - task_key: promo_events
+          depends_on: [{ task_key: gold_contract }]
+          notebook_task:
+            notebook_path: ./notebooks/05_promo_events.ipynb
+        - task_key: charts
+          depends_on: [{ task_key: stockout_runs }, { task_key: promo_events }]
+          notebook_task:
+            notebook_path: ./notebooks/06_charts.ipynb
+        - task_key: export
+          depends_on: [{ task_key: charts }]
+          notebook_task:
+            notebook_path: ./notebooks/07_export.ipynb
+
+targets:
+  dev:
+    mode: development  # prefixes the job name with [dev <user>] and pauses schedules
+    default: true
+  prod:
+    mode: production
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/prod

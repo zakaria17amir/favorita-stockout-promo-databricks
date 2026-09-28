@@ -103,6 +103,7 @@ It's compared with the item's normal rate: its average over the previous 28 trad
 | Statistics | Negative-binomial run test (vs. Poisson), Benjamini–Hochberg FDR, bootstrap CIs | Built and tested |
 | Plotly | Uplift and net payback with CIs, holiday/payday check, stock-out rate heatmap, overdispersion check | Built, see [Results](#results) |
 | Testing | pytest on local Spark; Project 1's fixture must give the same numbers as Project 1 | Built |
+| CI/CD | GitHub Actions: tests, bundle validation, and deploys the Databricks Job on every merge | Built |
 | Interoperability | Same table contract as Project 1, reconciled row by row; Power BI via the Databricks connector | Reconciled; connector tested |
 
 ## Architecture
@@ -183,6 +184,21 @@ python -m venv .venv
    databricks fs cp -r dbfs:/Volumes/workspace/gold/export data/export --overwrite
    .venv/Scripts/python scripts/reconcile.py --export data/export --flagship ../Flagship/data/full/gold
    ```
+
+### CI/CD (GitHub Actions + Databricks bundle)
+
+The pipeline is defined as code in [`databricks.yml`](databricks.yml): one Databricks Job, *favorita-pipeline*,
+that runs notebooks 00 → 07 as eight tasks on serverless compute. Stock-out runs and promo events run in parallel.
+
+| When | What [`ci.yml`](.github/workflows/ci.yml) does |
+|---|---|
+| Every pull request | Runs the tests, then `databricks bundle validate` |
+| Every merge to `main` | Runs the tests, validates, then `databricks bundle deploy -t prod`, which updates the job in the workspace |
+| **Actions → ci → Run workflow**, with *run_pipeline* ticked | Also runs the whole pipeline and waits for it to finish |
+
+Merges deploy the job but never run it, because each run uses part of Free Edition's daily compute cap. The only
+credential is a `DATABRICKS_TOKEN` repository secret (the workspace host is in `databricks.yml`). Until it's set,
+the Databricks steps are skipped with a notice. To deploy from a laptop instead: `databricks bundle deploy -t dev`.
 
 ## Roadmap
 
