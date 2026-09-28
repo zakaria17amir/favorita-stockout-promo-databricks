@@ -16,8 +16,13 @@ The Free Edition documentation doesn't say whether BI tools can authenticate wit
    lakehouse (Files → Load to Tables). This always works, but it's a manual copy.
 
 ## Decision
-**Option 1.** The day-one test succeeded. Option 2 stays as the documented fallback. Import mode in both cases:
-the analysis tables are small, and Import keeps Project 1's refresh independent of a free warehouse.
+**Option 1.** The day-one test succeeded. Option 2 stays as the documented fallback. Import mode in both cases,
+because the analysis tables are small.
+
+*Correction (2026-09-28):* an earlier version said Import "keeps Project 1's refresh independent of a free
+warehouse". That's wrong. An Import refresh reads every source, so if Databricks is unavailable, Project 1's whole
+model fails to refresh. Project 1 accepts that risk for a manually refreshed demo; see its
+[ADR-012](https://github.com/zakaria17amir/store-performance-fabric/blob/main/docs/decisions/ADR-012-databricks-second-source.md).
 
 ## Test result
 - **2026-09-26: works.** Power BI Desktop loaded `workspace.gold.connector_check` (one row: "hello from

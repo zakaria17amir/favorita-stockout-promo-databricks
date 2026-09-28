@@ -207,7 +207,9 @@ the Databricks steps are skipped with a notice. To deploy from a laptop instead:
 - [x] Reconciliation against Project 1: all checks pass ([report](docs/reconciliation.md))
 - [x] Power BI connection test: token login works on Free Edition via the Azure Databricks connector ([ADR-002](docs/decisions/ADR-002-power-bi-link.md))
 - [x] Results and charts in this README
-- [ ] Stock-out and promo deep-dive page in Project 1's Power BI report
+- [x] CI/CD: GitHub Actions deploys the pipeline as a Databricks Job ([`databricks.yml`](databricks.yml))
+- [ ] Stock-out and promo deep-dive report in Project 1 (pull request open:
+      [store-performance-fabric#28](https://github.com/zakaria17amir/store-performance-fabric/pull/28))
 
 ## Data
 
